@@ -5,8 +5,10 @@
 #include <vector>
 #include <map>
 
-
-#define debug false
+#define DEBUG false
+#define ALPHABET 26
+#define WORDLEN 5
+#define NWORDS ALPHABET/WORDLEN
 
 
 bool all_distinct_letters(std::string &w){
@@ -17,7 +19,7 @@ bool all_distinct_letters(std::string &w){
      * @param w string to be parsed
      */
 
-    bool seen[26]{};
+    bool seen[ALPHABET]{};
     for (int i = 0 ; i != w.length() ; i++) {
         int index = int(w[i]) - int('a');
         if (seen[index]) return false;
@@ -26,11 +28,11 @@ bool all_distinct_letters(std::string &w){
     return true;
 }
 
-unsigned int word_as_unint(const std::string &w){
+unsigned int word_as_uint(const std::string &w){
 
     /**
      * Covert a word to a positive integer
-     * the integer is 26 wide bitset representation based on
+     * the integer is ALPHABET wide bitset representation based on
      * letters used in the word.
      * The representation is alphabetical meaning the letter
      * 'a' is encoded as 000...1
@@ -57,7 +59,7 @@ std::vector<unsigned int> gen_unint(const std::vector<std::string> &words){
     std::vector<unsigned int> unints(words.size());
 
     for (unsigned int i=0; i < words.size(); ++i){
-        unints[i] = word_as_unint(words[i]);
+        unints[i] = word_as_uint(words[i]);
     }
 
     return unints;
@@ -69,7 +71,7 @@ std::map<unsigned int, std::vector<unsigned int>> gen_adj_map(
 
     /**
      * Generate an adjacency list as a mapping between the
-     * word repsented as an integer - see word_as_unint
+     * word repsented as an integer - see word_as_uint
      * and a vector with other words without overlapping letters
      * (neighbors) also represented as integers
      * 
@@ -79,8 +81,9 @@ std::map<unsigned int, std::vector<unsigned int>> gen_adj_map(
     std::map<unsigned int, std::vector<unsigned int>> adj_map;
 
     for(unsigned int idx1=0; idx1<wbits.size(); ++idx1){
+        adj_map[idx1] = {}; //initilize the map with empty list
         for(unsigned int idx2=0; idx2<wbits.size(); ++idx2){
-            if((wbits[idx1] & wbits[idx2]) == 0){
+            if(((wbits[idx1] & wbits[idx2]) == 0) & (idx2 > idx1)){
                 adj_map[idx1].push_back(idx2);
             }
         }
@@ -88,37 +91,55 @@ std::map<unsigned int, std::vector<unsigned int>> gen_adj_map(
     return adj_map;
 };
 
-std::vector<unsigned int> cut_before(std::vector<unsigned int>& neigh, unsigned int cutoff){
+void findcliques(
+    const unsigned int& idx,
+    const std::map<unsigned int, std::vector<unsigned int>>& adj_map, 
+    const std::vector<unsigned int>& wuints,
+    const unsigned int& seenletters,
+    std::vector<unsigned int>& clique,
+    unsigned int foundwords,
+    std::vector<std::vector<unsigned int>>& results
+    ){
 
     /**
-     * The neighbors vector is split and all values before the cutoff removed
+     * Recursive function to build cliques of size NWORDS
+     * and store them in the results container
      * 
-     * @param neigh vector of integer representations of neighbor words, sorted
-     * @param cutoff representation value to use as a cutoff
-     * @note The integers in the neighbor vector are sorted
-     * @note This is used to allow us to consider only the lower triangular adjacency matrix
+     * @param idx index of the current word considered for the clique
+     * @param adj_map the adjancy lists stored as a map
+     * @param wuints vector of integer representations of all words
+     * @param seenletters integer representation of all seen letters in the words in the clique
+     * @param clique container for the indeces of the words in the clique
+     * @param foundwords counter of the words currently added to the clique
+     * @param results container for all discovered cliques
      */
 
-    unsigned int i{0};
-    for(i; i < neigh.size(); ++i){
-        if(neigh[i] > cutoff){
-            break;
+    if(foundwords==NWORDS){
+        results.push_back(clique);
+        return;
+    }
+
+    for(const unsigned int& idx : adj_map.at(idx)){
+        if((seenletters & wuints.at(idx)) == 0){
+            clique[foundwords] = idx;
+            findcliques(
+                idx,
+                adj_map,
+                wuints,
+                (seenletters | wuints.at(idx)),
+                clique,
+                foundwords+1,
+                results
+            );
         }
     }
-
-    std::vector<unsigned int> result(neigh.size()-i);
-    for(unsigned int j=i; j < neigh.size(); ++j){
-        result[j-i] = neigh[j];
-    }
-
-    return result;
 }
 
-std::vector<std::string> read_file(std::string fname){
+std::vector<std::string> read_wordlist(std::string fname){
     
     /**
-     * Reads the initial file with all allowed words in alphabetical order
-     * We keep only 5 letter words with distinct letters
+     * Reads the initial file with all allowed words in ALPHABETical order
+     * We keep only WORDLEN letter words with distinct letters
      *
      * @param fname filename
      */
@@ -130,7 +151,7 @@ std::vector<std::string> read_file(std::string fname){
 		std::string word;
 		file >> word;
 
-		if (word.length() != 5) continue;
+		if (word.length() != WORDLEN) continue;
         if (!all_distinct_letters(word)) continue;
 
 		words.push_back(word);
@@ -141,7 +162,7 @@ std::vector<std::string> read_file(std::string fname){
     return words;
 }
 
-void write_file(std::string fname, const std::vector<std::string> &words){
+void write_wordlist(std::string fname, const std::vector<std::string> &words){
 
     /**
      * Writes words to file. One word per line.
@@ -168,63 +189,31 @@ int main(){
     std::string words_file = "words_beta.txt";
 
     if (!(stat (words_file.c_str(), &buffer) == 0)) {
-        std::vector<std::string> words = read_file(complete_file);
-        write_file(words_file, words);
+        std::vector<std::string> words = read_wordlist(complete_file);
+        write_wordlist(words_file, words);
     }
 
-    std::vector<std::string> words = read_file(words_file);
+    std::vector<std::string> words = read_wordlist(words_file);
     std::vector<unsigned int> wunins = gen_unint(words);
 
-    std::cout << "Building adjacency list" << "\n";
+    if(DEBUG){
+        std::cout << "Building adjacency list" << "\n";
+    }
+
     std::map<unsigned int, std::vector<unsigned int>> adj_map = gen_adj_map(wunins);
     
-    std::cout << "Building cliques" << "\n";
-    std::vector<std::vector<unsigned int>> outcomes;
-    std::vector<unsigned int> lookup1;
-    std::vector<unsigned int> lookup2;
-    std::vector<unsigned int> lookup3;
-    std::vector<unsigned int> lookup4;
-    unsigned int tmpbit2 {1};
-    unsigned int tmpbit3 {1};
-    unsigned int tmpbit4 {1};
+    if(DEBUG){
+        std::cout << "Building cliques" << "\n";
+    }
 
-    // Nest 5 loop
-    // Outtermost loop over all words
-    // Each inner loop, iterating over the neighbor list
-    // each neighbor list pruned from all words with higher alphabetical order
+    std::vector<std::vector<unsigned int>> solutions;
+    std::vector<unsigned int> clique (NWORDS);
 
     for(unsigned int idxw1=0; idxw1<adj_map.size(); ++idxw1){
-        lookup1 = cut_before(adj_map[idxw1], idxw1);
-        for(unsigned int& idxw2 : lookup1){
-            tmpbit2 = (wunins[idxw1] | wunins[idxw2]);
-            lookup2 = cut_before(adj_map[idxw2], idxw2);
-            for(unsigned int& idxw3 : lookup2){
-                if((tmpbit2 & wunins[idxw3]) == 0){                      
-                    tmpbit3 = tmpbit2 | wunins[idxw3];
-                    lookup3 = cut_before(adj_map[idxw3], idxw3);
-                    for(unsigned int& idxw4 : lookup3){
-                        if((tmpbit3 & wunins[idxw4]) == 0){
-                            tmpbit4 = tmpbit3 | wunins[idxw4];
-                            lookup4 = cut_before(adj_map[idxw4], idxw4);
-                            for(unsigned int& idxw5 : lookup4){
-                                if((tmpbit4 & wunins[idxw5]) == 0){
-                                    if(debug){
-                                        std::cout << words[idxw1] << " "; 
-                                        std::cout << words[idxw2] << " ";
-                                        std::cout << words[idxw3] << " ";
-                                        std::cout << words[idxw4] << " "; 
-                                        std::cout << words[idxw5] << "\n";
-                                    }
-                                    outcomes.push_back({idxw1,idxw2,idxw3,idxw4,idxw5});
-                                } // if all new letters
-                            } // for lookup 5th word 
-                        } // if all new letters
-                    } // for lookup 4th word  
-                } // if all new letters
-            } // for lookup 3th word
-        } // for lookup 2th word
+        clique[0] = idxw1;
+        findcliques(idxw1, adj_map, wunins, wunins[idxw1], clique, 1, solutions);
 
-        if(debug){
+        if(DEBUG){
             int bar_width {70};
             std::cout << "[";
             unsigned int pos = float(idxw1) / adj_map.size() * bar_width;
@@ -244,19 +233,18 @@ int main(){
             std::cout << "]" << int(float(idxw1) / adj_map.size() * 100.0) << " %\r";
             std::cout.flush();
         }
+    }
 
-    } // for lookup 1th word
-
-    if(debug){
+    if(DEBUG){
         std::cout << "Cliques built" << "\n";
-        std::cout << outcomes.size()<< "\n";    
+        std::cout << solutions.size()<< "\n";
     }
 
     std::ofstream outfile("words_out.txt");
     
-    for(unsigned int i=0; i<outcomes.size(); ++i){
-        for(int j=0; j<5; ++j){
-            outfile << words[outcomes[i][j]] << " ";
+    for(unsigned int i=0; i<solutions.size(); ++i){
+        for(unsigned int j=0; j<NWORDS; ++j){
+            outfile << words[solutions[i][j]] << " ";
         }
         outfile << "\n";
     }
