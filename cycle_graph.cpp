@@ -95,12 +95,13 @@ void gen_adj_map(
 
 void findcliques(
     const unsigned int& idx,
-    const std::map<unsigned int, std::vector<unsigned int>>& adj_map, 
+    const std::vector<std::string>& words,
     const std::vector<unsigned int>& wuints,
+    const std::map<unsigned int, std::vector<unsigned int>>& adj_map,
     const unsigned int& seenletters,
     std::vector<unsigned int>& clique,
     unsigned int foundwords,
-    std::vector<std::vector<unsigned int>>& results
+    std::ofstream& outfile
     ){
 
     /**
@@ -108,16 +109,21 @@ void findcliques(
      * and store them in the results container
      * 
      * @param idx index of the current word considered for the clique
-     * @param adj_map the adjancy lists stored as a map
+     * @param words vector of all words
      * @param wuints vector of integer representations of all words
+     * @param adj_map the adjancy lists stored as a map
      * @param seenletters integer representation of all seen letters in the words in the clique
      * @param clique container for the indeces of the words in the clique
      * @param foundwords counter of the words currently added to the clique
-     * @param results container for all discovered cliques
+     * @param outfile file to output all discovered cliques
      */
 
+
     if(foundwords==NWORDS){
-        results.push_back(clique);
+        for(unsigned int i=0; i<NWORDS; ++i){
+            outfile << words[clique[i]] << " ";
+        }
+        outfile << "\n";
         return;
     }
 
@@ -126,12 +132,13 @@ void findcliques(
             clique[foundwords] = idx;
             findcliques(
                 idx,
-                adj_map,
+                words,
                 wuints,
+                adj_map,
                 (seenletters | wuints.at(idx)),
                 clique,
                 foundwords+1,
-                results
+                outfile
             );
         }
     }
@@ -206,27 +213,18 @@ int main(){
     std::map<unsigned int, std::vector<unsigned int>> adj_map;
     gen_adj_map(uints, adj_map);
     
-    std::vector<std::vector<unsigned int>> solutions;
-    std::vector<unsigned int> clique (NWORDS);
+    std::ofstream outfile("words_out.txt");
 
     std::for_each(
         std::execution::par,
         idxwords.begin(),
         idxwords.end(),
-        [&](unsigned int idx) {
+        [&words, &uints, &adj_map, &outfile](unsigned int idx) {
+            std::vector<unsigned int> clique (NWORDS);
             clique[0] = idx;
-            findcliques(idx, adj_map, uints, uints.at(idx), clique, 1, solutions);
+            findcliques(idx, words, uints, adj_map, uints.at(idx), clique, 1, outfile);
         } 
     );
-
-    std::ofstream outfile("words_out.txt");
-    
-    for(unsigned int i=0; i<solutions.size(); ++i){
-        for(unsigned int j=0; j<NWORDS; ++j){
-            outfile << words[solutions[i][j]] << " ";
-        }
-        outfile << "\n";
-    }
 
     outfile.close();
 
